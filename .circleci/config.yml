@@ -6,7 +6,7 @@ jobs:
   build:
     docker:
       # specify the version
-      - image: circleci/golang:1.9
+      - image: golang:1.13.3-alpine
 
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
@@ -17,10 +17,34 @@ jobs:
     #### expecting it in the form of
     ####   /go/src/github.com/circleci/go-tool
     ####   /go/src/bitbucket.org/circleci/go-tool
-    working_directory: /go/src/github.com/{{ORG_NAME}}/{{REPO_NAME}}
+    working_directory: /tmp
     steps:
       - checkout
-
-      # specify any bash command here prefixed with `run: `
-      - run: go get -v -t -d ./...
-      - run: go test -v ./...
+      - setup_remote_docker
+      - run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+      - run:
+          name: "Build docker image and push to docker hub"
+          command: |
+             if [ "${CIRCLE_BRANCH}" == "master" ]; then
+               docker build -t mse4694/devops-go:2.0 .
+               docker push mse4694/example-nodejs-circle:2.0
+             elif [ "${CIRCLE_BRANCH}" == "staging" ]; then
+               cp Dockerfile.staging Dockerfile
+               docker build -t mse4694/mse4694/devops-go-staging:latest .
+               docker push mse4694/mse4694/devops-go-staging:latest
+             else
+               echo "This is ${CIRCLE_BRANCH}"
+             fi
+      - run:
+          name: "Call to rancher to deploy"
+          command: |
+             docker run --rm -it \
+             -e CATTLE_ACCESS_KEY="702845BC18E645442FC9" \
+             -e CATTLE_SECRET_KEY="F7hh4kns7Neke2PbkM9Verb4GMDaouUJKQZ9dMqB" \
+             -e CATTLE_URL="http://159.89.88.159:8080/" \
+             etlweather/gaucho upgrade $RANCHER_EXAMPLE_NODEJS \
+             --imageUuid 'docker:mse4694/devops-go:2.0' \
+             --batch_size 3 --start_first \
+             --auto_complete --timeout 600 \
+             /
+      - run: echo Done
