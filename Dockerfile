@@ -3,8 +3,7 @@ FROM golang:1.13.3-alpine
 RUN apk update \
     && apk add alpine-sdk git
 
-
-COPY source/ /tmp
+COPY . /tmp
 
 WORKDIR /tmp
 
